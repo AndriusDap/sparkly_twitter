@@ -6,23 +6,25 @@ object App {
     val session = SparkSession.builder().getOrCreate()
     Logger.getRootLogger.setLevel(Level.OFF)
 
+    val tweetSource =  session.read.json("tweets.json").toDF()
 
-    val tweets =  session.read.json("1st_run.json").toDF()
+    //tweetSource.createOrReplaceTempView("tweetTable")
 
-    tweets.createOrReplaceTempView("tweetTable")
-
-    var counts = tweets.filter (
-      tweets.col("lang").isNotNull && tweets.col("text").isNotNull
+    val availableTweets = tweetSource.filter(
+      tweetSource.col("lang").isNotNull && tweetSource.col("text").isNotNull
     ).filter(
-      tweets.col("lang") =!= "und"
+      tweetSource.col("lang") =!= "und"
     ).select(
-      "lang", "text"
-    ).groupBy(
-      "lang"
+      tweetSource.col("lang"), tweetSource.col("text")
+    )
+
+    val counts = availableTweets.groupBy(
+      tweetSource.col("lang")
     ).count
 
+    val sortedCounts = counts.sort(counts.col("count").desc)
 
-    counts.collect().foreach(println)
+    sortedCounts.collect().foreach(println)
 
     session.stop()
   }
