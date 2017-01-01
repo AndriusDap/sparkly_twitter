@@ -1,0 +1,9 @@
+[0m[[0minfo[0m] [0mLoading global plugins from /home/andrius/.sbt/0.13/plugins[0m
+[0m[[0minfo[0m] [0mSet current project to tweet clusterer (in build file:/home/andrius/uni/sparkly_twitter/)[0m
+[0m[[32msuccess[0m] [0mTotal time: 0 s, completed Jan 2, 2017 12:06:26 AM[0m
+Languages we're working with: [ja, en, ko, ar, th, es, pt, in, tl, fr]
+
+Test Error = 0.4505613305613305
+Validation Error = 0.4485888760521538
+Test Error = 0.45064449064449064
+Validation Error = 0.4494966166033999
