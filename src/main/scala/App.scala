@@ -1,16 +1,54 @@
 import java.util.Locale
 
 import org.apache.log4j.{Level, Logger}
+import org.apache.spark.ml.Pipeline
+import org.apache.spark.ml.classification.{RandomForestClassificationModel, RandomForestClassifier}
+import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import org.apache.spark.sql.{Dataset, SparkSession}
-import org.apache.spark.ml.feature.Word2Vec
+import org.apache.spark.ml.feature.{IndexToString, StringIndexer, Word2Vec}
 import org.apache.spark.mllib.clustering.KMeans
 
 
 case class Tweet(lang: String, text: String)
+case class FactorisedTweet(lang: String, tweet: Array[String])
 
 object App {
 
   def main(args: Array[String]): Unit = sparkSession {
+    def report(
+                factorisedTweet: Dataset[FactorisedTweet],
+                test: Dataset[FactorisedTweet],
+                validation: Dataset[FactorisedTweet],
+                numTrees: Int = 10
+              ): Unit = {
+      val word2Vec = new Word2Vec()
+        .setInputCol("tweet")
+        .setOutputCol("features")
+        .setVectorSize(8)
+
+      val indexer = new StringIndexer().setInputCol("lang").setOutputCol("langIndex").fit(factorisedTweet)
+
+      val rf = new RandomForestClassifier()
+        .setLabelCol("langIndex")
+        .setFeaturesCol("features")
+        .setNumTrees(numTrees)
+
+      val labelConverted = new IndexToString().setInputCol("prediction").setOutputCol("predictedLabel").setLabels(indexer.labels)
+
+      val pipeline = new Pipeline().setStages(Array(indexer, word2Vec, rf, labelConverted))
+
+      val model = pipeline.fit(factorisedTweet)
+      val predictions = model.transform(test)
+      val p_valid = model.transform(validation)
+
+      val evaluator = new MulticlassClassificationEvaluator()
+        .setLabelCol("langIndex")
+        .setPredictionCol("prediction")
+        .setMetricName("accuracy")
+
+      println("Test Error = " + (1.0 - evaluator.evaluate(predictions)))
+      println("Validation Error = " + (1.0 - evaluator.evaluate(p_valid)))
+    }
     session =>
       import session.implicits._
       implicit val s = session
@@ -28,31 +66,15 @@ object App {
 
       val tweetsForProcessing = availableTweets.filter($"lang".isin(languages: _*))
 
-      val singleLang = tweetsForProcessing.filter($"lang" === "en")//languages.head)
-
       val tweets = cleanUp(tweetsForProcessing)
 
-
-      val word2Vec = new Word2Vec()
-        .setInputCol("value")
-        .setOutputCol("result")
-        .setVectorSize(8)
-
-      val bags = factorise(tweets.filter(_.lang == "en"))
-      bags.printSchema()
-      val model = word2Vec.fit(bags)
-      val result = model.transform(bags)
-
-      println(s"Selected ${tweetsForProcessing.count()} tweets")
-      result.take(10).foreach(println)
+      val factorisedTweet = factorise(tweets)
 
 
-      val clusters = KMeans.train(result.select($"result").as[org.apache.spark.mllib.linalg.Vector].rdd, 6, 10)
+      val Array(training, test, validation) = factorisedTweet.randomSplit(Array(0.6, 0.2, 0.2))
 
-      
-
-      // Evaluate clustering by computing Within Set Sum of Squared Errors
-      val WSSSE = clusters.computeCost(parsedData)
+      report(factorisedTweet, test, validation, 10)
+      report(factorisedTweet, test, validation, 200)
   }
 
   def cleanUp(dataset: Dataset[Tweet])(implicit session: SparkSession): Dataset[Tweet] = {
@@ -64,31 +86,10 @@ object App {
     }
   }
 
-  def factorise(dataset: Dataset[Tweet])(implicit session: SparkSession): Dataset[Array[String]] = {
+  def factorise(dataset: Dataset[Tweet])(implicit session: SparkSession): Dataset[FactorisedTweet] = {
     import session.implicits._
-
-    dataset.map(t => t.text.split(" ").filter(_.length > 4))
+    dataset.map(t => FactorisedTweet(t.lang, t.text.split(" ").filter(_.length > 4)))
   }
-
-  def factors(dataset: Dataset[Tweet])(implicit session: SparkSession): Dataset[String] = {
-    import session.implicits._
-
-    val words = factorise(dataset).flatMap(c => c)
-
-    println(s"Most popular words are ${
-      words
-        .groupBy($"value")
-        .count
-        .sort($"count".desc)
-        .select($"value")
-        .as[String]
-        .take(30)
-        .mkString(", ")
-    }")
-
-    words.distinct
-  }
-
 
   def sparkSession(f: SparkSession => Unit) {
     val session = SparkSession.builder().getOrCreate()
