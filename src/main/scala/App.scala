@@ -2,57 +2,32 @@
 import com.typesafe.config.ConfigFactory
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.streaming.{Duration, Seconds, StreamingContext}
 import twitter4j.conf.ConfigurationBuilder
+import twitter4j.util.function.Consumer
 
-
-case class Tweet(lang: String, text: String)
-case class FactorisedTweet(lang: String, tweet: Array[String])
+import scala.collection.JavaConversions._
 
 object App {
+  def main(args: Array[String]): Unit = sparkSession {
+    session =>
+      import session.implicits._
 
-  val properties = ConfigFactory.load
+      val ssc = new StreamingContext(session.sparkContext, Seconds(3))
 
-  println(properties.entrySet())
+      val receiver = new TwitterReceiver("windows")
+      val tweets = ssc.receiverStream(receiver)
 
-  val consumerKey = properties.getString("oauth.consumerKey")
-  val consumerSecret = properties.getString("oauth.consumerSecret")
-  val accessToken = properties.getString("oauth.accessToken")
-  val accessTokenSecret = properties.getString("oauth.accessTokenSecret")
-
-  def main(args: Array[String]): Unit = {
-    import twitter4j._
-
-    val config = new ConfigurationBuilder()
-
-    config.setDebugEnabled(true)
-      .setOAuthConsumerKey(consumerKey)
-      .setOAuthConsumerSecret(consumerSecret)
-      .setOAuthAccessToken(accessToken)
-      .setOAuthAccessTokenSecret(accessTokenSecret)
-
-
-    val twitterStream = new TwitterStreamFactory(config.build).getInstance()
-
-    twitterStream.addListener(new StatusListener {
-      override def onStallWarning(warning: StallWarning): Unit = ()
-      override def onDeletionNotice(statusDeletionNotice: StatusDeletionNotice): Unit = ()
-      override def onScrubGeo(userId: Long, upToStatusId: Long): Unit = ()
-      override def onTrackLimitationNotice(numberOfLimitedStatuses: Int): Unit = ()
-      override def onException(ex: Exception): Unit = {
-        println(ex.getMessage)
-      }
-
-      override def onStatus(status: Status): Unit = {
-        println(status.getText)
-      }
-    })
-
-    twitterStream.sample("en")
+      tweets.print()
+      ssc.start()
+      ssc.awaitTermination()
   }
 
   def sparkSession(f: SparkSession => Unit) {
-    val session = SparkSession.builder().getOrCreate()
-    Logger.getRootLogger.setLevel(Level.OFF)
+    val session = SparkSession.builder().master("local[*]").getOrCreate()
+
+
+    Logger.getRootLogger.setLevel(Level.WARN)
     f(session)
     session.stop()
   }
