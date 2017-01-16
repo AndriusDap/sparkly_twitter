@@ -1,17 +1,12 @@
 
-import com.typesafe.config.ConfigFactory
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.streaming.{Duration, Seconds, StreamingContext}
-import twitter4j.conf.ConfigurationBuilder
-import twitter4j.util.function.Consumer
-
-import scala.collection.JavaConversions._
+import org.apache.spark.streaming.{Seconds, StreamingContext}
 
 object App {
   def main(args: Array[String]): Unit = sparkSession {
     session =>
-      import session.implicits._
+
 
       val ssc = new StreamingContext(session.sparkContext, Seconds(3))
 

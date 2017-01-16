@@ -13,7 +13,7 @@ class TwitterReceiver(filter: String)  extends Receiver[String](StorageLevel.MEM
   val accessToken = properties.getString("oauth.accessToken")
   val accessTokenSecret = properties.getString("oauth.accessTokenSecret")
 
-  var nullableStream: TwitterStream = null
+  var nullableStream: TwitterStream = _
 
   override def onStart(): Unit = {
     val config = new ConfigurationBuilder()
