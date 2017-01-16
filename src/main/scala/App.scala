@@ -1,12 +1,8 @@
-import java.util.Locale
 
+import com.typesafe.config.ConfigFactory
 import org.apache.log4j.{Level, Logger}
-import org.apache.spark.ml.Pipeline
-import org.apache.spark.ml.classification.{RandomForestClassificationModel, RandomForestClassifier}
-import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
-import org.apache.spark.sql.{Dataset, SparkSession}
-import org.apache.spark.ml.feature.{IndexToString, StringIndexer, Word2Vec}
-import org.apache.spark.mllib.clustering.KMeans
+import org.apache.spark.sql.SparkSession
+import twitter4j.conf.ConfigurationBuilder
 
 
 case class Tweet(lang: String, text: String)
@@ -14,81 +10,44 @@ case class FactorisedTweet(lang: String, tweet: Array[String])
 
 object App {
 
-  def main(args: Array[String]): Unit = sparkSession {
-    def report(
-                factorisedTweet: Dataset[FactorisedTweet],
-                test: Dataset[FactorisedTweet],
-                validation: Dataset[FactorisedTweet],
-                numTrees: Int = 10
-              ): Unit = {
-      val word2Vec = new Word2Vec()
-        .setInputCol("tweet")
-        .setOutputCol("features")
-        .setVectorSize(8)
+  val properties = ConfigFactory.load
 
-      val indexer = new StringIndexer().setInputCol("lang").setOutputCol("langIndex").fit(factorisedTweet)
+  println(properties.entrySet())
 
-      val rf = new RandomForestClassifier()
-        .setLabelCol("langIndex")
-        .setFeaturesCol("features")
-        .setNumTrees(numTrees)
+  val consumerKey = properties.getString("oauth.consumerKey")
+  val consumerSecret = properties.getString("oauth.consumerSecret")
+  val accessToken = properties.getString("oauth.accessToken")
+  val accessTokenSecret = properties.getString("oauth.accessTokenSecret")
 
-      val labelConverted = new IndexToString().setInputCol("prediction").setOutputCol("predictedLabel").setLabels(indexer.labels)
+  def main(args: Array[String]): Unit = {
+    import twitter4j._
 
-      val pipeline = new Pipeline().setStages(Array(indexer, word2Vec, rf, labelConverted))
+    val config = new ConfigurationBuilder()
 
-      val model = pipeline.fit(factorisedTweet)
-      val predictions = model.transform(test)
-      val p_valid = model.transform(validation)
-
-      val evaluator = new MulticlassClassificationEvaluator()
-        .setLabelCol("langIndex")
-        .setPredictionCol("prediction")
-        .setMetricName("accuracy")
-
-      println("Test Error = " + (1.0 - evaluator.evaluate(predictions)))
-      println("Validation Error = " + (1.0 - evaluator.evaluate(p_valid)))
-    }
-    session =>
-      import session.implicits._
-      implicit val s = session
-
-      val availableTweets = session.read.json("tweets.json").toDF()
-        .filter($"lang".isNotNull && $"text".isNotNull && $"lang" =!= "und")
-        .select($"lang", $"text").as[Tweet]
-
-      val languages = availableTweets
-          .groupBy($"lang").count.sort($"count".desc)
-          .select($"lang").as[String].take(10)
-
-      println(s"Languages we're working with: [${languages.mkString(", ")}]")
-      println()
-
-      val tweetsForProcessing = availableTweets.filter($"lang".isin(languages: _*))
-
-      val tweets = cleanUp(tweetsForProcessing)
-
-      val factorisedTweet = factorise(tweets)
+    config.setDebugEnabled(true)
+      .setOAuthConsumerKey(consumerKey)
+      .setOAuthConsumerSecret(consumerSecret)
+      .setOAuthAccessToken(accessToken)
+      .setOAuthAccessTokenSecret(accessTokenSecret)
 
 
-      val Array(training, test, validation) = factorisedTweet.randomSplit(Array(0.6, 0.2, 0.2))
+    val twitterStream = new TwitterStreamFactory(config.build).getInstance()
 
-      report(factorisedTweet, test, validation, 10)
-      report(factorisedTweet, test, validation, 200)
-  }
+    twitterStream.addListener(new StatusListener {
+      override def onStallWarning(warning: StallWarning): Unit = ()
+      override def onDeletionNotice(statusDeletionNotice: StatusDeletionNotice): Unit = ()
+      override def onScrubGeo(userId: Long, upToStatusId: Long): Unit = ()
+      override def onTrackLimitationNotice(numberOfLimitedStatuses: Int): Unit = ()
+      override def onException(ex: Exception): Unit = {
+        println(ex.getMessage)
+      }
 
-  def cleanUp(dataset: Dataset[Tweet])(implicit session: SparkSession): Dataset[Tweet] = {
-    import session.implicits._
+      override def onStatus(status: Status): Unit = {
+        println(status.getText)
+      }
+    })
 
-    dataset.map {
-      case Tweet(lang, text) =>
-        Tweet(lang, text.toUpperCase(Locale.forLanguageTag(lang)).replaceAll("[^\\p{L}]", " "))
-    }
-  }
-
-  def factorise(dataset: Dataset[Tweet])(implicit session: SparkSession): Dataset[FactorisedTweet] = {
-    import session.implicits._
-    dataset.map(t => FactorisedTweet(t.lang, t.text.split(" ").filter(_.length > 4)))
+    twitterStream.sample("en")
   }
 
   def sparkSession(f: SparkSession => Unit) {
