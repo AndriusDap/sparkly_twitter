@@ -1,29 +1,26 @@
-
-import org.apache.log4j.{Level, Logger}
-import org.apache.spark.sql.SparkSession
+import SparkUtils._
+import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 
 object App {
   def main(args: Array[String]): Unit = sparkSession {
     session =>
-
+      import session.implicits._
 
       val ssc = new StreamingContext(session.sparkContext, Seconds(3))
 
       val receiver = new TwitterReceiver("windows")
       val tweets = ssc.receiverStream(receiver)
 
-      tweets.print()
+      val pipeline = PipelineModel.read.load("model")
+      tweets.foreachRDD {
+        rdd =>
+          val f = pipeline.transform(rdd.toDS())
+
+          f.map(_.mkString).foreach(s => println(s))
+      }
+
       ssc.start()
       ssc.awaitTermination()
-  }
-
-  def sparkSession(f: SparkSession => Unit) {
-    val session = SparkSession.builder().master("local[*]").getOrCreate()
-
-
-    Logger.getRootLogger.setLevel(Level.WARN)
-    f(session)
-    session.stop()
   }
 }
