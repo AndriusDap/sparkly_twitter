@@ -27,20 +27,16 @@ class TwitterReceiver(filter: String)  extends Receiver[String](StorageLevel.MEM
     val stream = new TwitterStreamFactory(config.build).getInstance()
 
     stream.addListener(new StatusListener {
-      override def onStallWarning(warning: StallWarning): Unit = ()
-
-      override def onDeletionNotice(statusDeletionNotice: StatusDeletionNotice): Unit = ()
-
-      override def onScrubGeo(userId: Long, upToStatusId: Long): Unit = ()
-
       override def onStatus(status: Status): Unit = {
         if(status.getLang == "en") {
           store(status.getText.replaceAll("\\n", " "))
         }
       }
 
+      override def onStallWarning(warning: StallWarning): Unit = ()
+      override def onDeletionNotice(statusDeletionNotice: StatusDeletionNotice): Unit = ()
+      override def onScrubGeo(userId: Long, upToStatusId: Long): Unit = ()
       override def onTrackLimitationNotice(numberOfLimitedStatuses: Int): Unit = ()
-
       override def onException(ex: Exception): Unit = ()
     })
 
