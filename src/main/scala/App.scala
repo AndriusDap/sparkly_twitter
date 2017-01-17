@@ -5,8 +5,10 @@ import org.apache.spark.mllib.clustering.StreamingKMeans
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.{Seconds, StreamingContext}
+import org.eclipse.jetty.server.Server
 
 object App {
+
   def main(args: Array[String]): Unit = sparkSession {
     session =>
       import session.implicits._
