@@ -7,12 +7,12 @@ val twitter4jVersion = "4.0.6"
 val sparkVer = "2.0.2"
 
 libraryDependencies ++=  Seq(
-  "org.apache.spark" %% "spark-core" % sparkVer,
-  "org.apache.spark" %% "spark-sql" % sparkVer,
-  "org.apache.spark" %% "spark-core" % sparkVer,
-  "org.apache.spark" %% "spark-mllib" % sparkVer,
-  "org.apache.spark" %% "spark-sql" % sparkVer,
-  "org.apache.spark" %% "spark-streaming" % sparkVer,
+  "org.apache.spark" %% "spark-core" % sparkVer % "provided",
+  "org.apache.spark" %% "spark-sql" % sparkVer % "provided",
+  "org.apache.spark" %% "spark-core" % sparkVer % "provided",
+  "org.apache.spark" %% "spark-mllib" % sparkVer % "provided",
+  "org.apache.spark" %% "spark-sql" % sparkVer % "provided",
+  "org.apache.spark" %% "spark-streaming" % sparkVer % "provided",
 
   "org.twitter4j" % "twitter4j-core" % twitter4jVersion,
   "org.twitter4j" % "twitter4j-async" % twitter4jVersion,
