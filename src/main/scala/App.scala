@@ -15,7 +15,7 @@ object App {
 
       val ssc = new StreamingContext(session.sparkContext, Seconds(3))
 
-      val receiver = new TwitterReceiver("puppy,giraffe,windows")
+      val receiver = new TwitterReceiver("windows")
       val tweets = ssc.receiverStream(receiver)
 
       val pipeline = PipelineModel.read.load("model")
